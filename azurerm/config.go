@@ -68,6 +68,8 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/subscription"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/trafficmanager"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/web"
+
+	sqlmi "github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2017-03-01-preview/sql"
 )
 
 // ArmClient contains the handles to all the specific Azure Resource Manager
@@ -148,6 +150,9 @@ type ArmClient struct {
 	Sql              *sql.Client
 	TrafficManager   *trafficmanager.Client
 	Web              *web.Client
+
+	// TODO: move this
+	sqlMiServersClient sqlmi.ManagedInstancesClient
 }
 
 // getArmClient is a helper method which returns a fully instantiated
@@ -200,9 +205,6 @@ func getArmClient(authConfig *authentication.Config, skipProviderRegistration bo
 
 	// Storage Endpoints
 	storageAuth, err := authConfig.GetAuthorizationToken(sender, oauthConfig, env.ResourceIdentifiers.Storage)
-	if err != nil {
-		return nil, err
-	}
 
 	// Key Vault Endpoints
 	keyVaultAuth := authConfig.BearerAuthorizerCallback(sender, oauthConfig)

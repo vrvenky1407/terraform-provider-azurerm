@@ -464,6 +464,9 @@ func Provider() terraform.ResourceProvider {
 		"azurerm_virtual_network":                                                        resourceArmVirtualNetwork(),
 		"azurerm_virtual_wan":                                                            resourceArmVirtualWan(),
 		"azurerm_web_application_firewall_policy":                                        resourceArmWebApplicationFirewallPolicy(),
+
+		// TODO: make 2.0 only
+		"azurerm_sql_managed_instance": resourceArmSqlMiServer(),
 	}
 
 	// 2.0 resources
