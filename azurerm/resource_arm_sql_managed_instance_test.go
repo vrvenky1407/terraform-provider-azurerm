@@ -146,6 +146,28 @@ func testCheckAzureRMSQLManagedInstanceDisappears(resourceName string) resource.
 }
 
 func testAccAzureRMSQLManagedInstance_basic(rInt int, location string) string {
+	template := testAccAzureRMSQLManagedInstance_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+ 
+resource "azurerm_sql_managed_instance" "test" {
+  name                         = "acctestsqlserver%d"
+  resource_group_name          = azurerm_resource_group.test.name
+  location                     = azurerm_resource_group.test.location
+  subnet_id					   = azurerm_subnet.test.id
+  administrator_login          = "mradministrator"
+  administrator_login_password = "thisIsDog11"
+  license_type				   = "BasePrice"
+
+  tags {
+	environment = "staging"
+	database    = "test"
+  }
+}
+`, template, rInt)
+}
+
+func testAccAzureRMSQLManagedInstance_template(rInt int, location string) string {
 	return fmt.Sprintf(`
 resource "azurerm_resource_group" "test" {
   name     = "acctestRG-%d"
@@ -154,50 +176,35 @@ resource "azurerm_resource_group" "test" {
 
 resource "azurerm_virtual_network" "test" {
   name                = "acctest-vnet-%d"
-  resource_group_name = "${azurerm_resource_group.test.name}"
+  resource_group_name = azurerm_resource_group.test.name
+  location            = azurerm_resource_group.test.location
   address_space       = ["10.0.0.0/16"]
-  location            = "${azurerm_resource_group.test.location}"
 }
   
 resource "azurerm_subnet" "test" {
   name                 = "subnet-%d"
-  resource_group_name  = "${azurerm_resource_group.test.name}"
-  virtual_network_name = "${azurerm_virtual_network.test.name}"
+  resource_group_name  = azurerm_resource_group.test.name
+  virtual_network_name = azurerm_virtual_network.test.name
   address_prefix       = "10.0.0.0/24"  
-  route_table_id       = "${azurerm_route_table.test.id}"
+  route_table_id       = azurerm_route_table.test.id
 }
 
 resource "azurerm_route_table" "test" {
-	name                          = "routetable-%d"
-	location                      = "${azurerm_resource_group.test.location}"
-	resource_group_name           = "${azurerm_resource_group.test.name}"
-	disable_bgp_route_propagation = false
-  
-	route {
-	  name           = "RouteToAzureSqlMiMngSvc"
-	  address_prefix = "0.0.0.0/0"
-	  next_hop_type  = "Internet"
-	}
+  name                          = "routetable-%d"
+  location                      = azurerm_resource_group.test.location
+  resource_group_name           = azurerm_resource_group.test.name
+  disable_bgp_route_propagation = false
+
+  route {
+    name           = "RouteToAzureSqlMiMngSvc"
+    address_prefix = "0.0.0.0/0"
+    next_hop_type  = "Internet"
+  }
 }
 
 resource "azurerm_subnet_route_table_association" "test" {
-	subnet_id      = "${azurerm_subnet.test.id}"
-	route_table_id = "${azurerm_route_table.test.id}"
+  subnet_id      = azurerm_subnet.test.id
+  route_table_id = azurerm_route_table.test.id
 }
- 
-resource "azurerm_sql_managed_instance" "test" {
-  name                         = "acctestsqlserver%d"
-  resource_group_name          = "${azurerm_resource_group.test.name}"
-  location                     = "${azurerm_resource_group.test.location}"
-  administrator_login          = "mradministrator"
-  administrator_login_password = "thisIsDog11"
-  license_type				   = "BasePrice"
-  subnet_id					   = "${azurerm_subnet.test.id}"
-
-  tags {
-	environment = "staging"
-	database    = "test"
-  }
-}
-`, rInt, location, rInt, rInt, rInt, rInt)
+`, rInt, location, rInt, rInt, rInt)
 }
