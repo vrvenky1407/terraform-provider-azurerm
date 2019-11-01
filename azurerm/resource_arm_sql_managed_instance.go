@@ -17,11 +17,11 @@ import (
 
 func resourceArmSqlManagedInstance() *schema.Resource {
 	return &schema.Resource{
-		// TODO: split Create and Update
-		Create: resourceArmSqlManagedInstanceCreateUpdate,
+		Create: resourceArmSqlManagedInstanceCreate,
 		Read:   resourceArmSqlManagedInstanceServerRead,
-		Update: resourceArmSqlManagedInstanceCreateUpdate,
+		Update: resourceArmSqlManagedInstanceUpdate,
 		Delete: resourceArmSqlManagedInstanceDelete,
+		// TOOD: timeouts
 
 		Schema: map[string]*schema.Schema{
 			"name": {
@@ -29,49 +29,17 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: azure.ValidateMsSqlServerName,
+				// TODO: confirm validation
 			},
 
 			"location": azure.SchemaLocation(),
 
 			"resource_group_name": azure.SchemaResourceGroupName(),
 
-			"sku": {
-				Type:     schema.TypeList,
-				Optional: true,
-				MaxItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"name": {
-							Type:     schema.TypeString,
-							Required: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								"GP_Gen4",
-								"GP_Gen5",
-							}, false),
-						},
-
-						"capacity": {
-							Type:     schema.TypeInt,
-							Computed: true,
-						},
-
-						"tier": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
-
-						"family": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
-					},
-				},
-			},
-
 			"administrator_login": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true,
+				ForceNew: true, // TODO: is it?
 				// TODO: validation
 			},
 
@@ -82,10 +50,32 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				// TODO: validation
 			},
 
+			"sku_name": {
+				Type:     schema.TypeString,
+				Required: true,
+				ValidateFunc: validation.StringInSlice([]string{
+					"GP_Gen4",
+					"GP_Gen5",
+				}, false),
+			},
+
+			"storage_size_in_gb": {
+				Type:         schema.TypeInt,
+				Required:     true,
+				ValidateFunc: validate.IntBetweenAndDivisibleBy(32, 8000, 32),
+			},
+
+			"subnet_id": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: azure.ValidateResourceID,
+			},
+
+			"tags": tagsSchema(),
+
 			"vcores": {
 				Type:     schema.TypeInt,
-				Optional: true,
-				Default:  8,
+				Required: true,
 				ValidateFunc: validate.IntInSlice([]int{
 					8,
 					16,
@@ -97,13 +87,7 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				}),
 			},
 
-			"storage_size_in_gb": {
-				Type:         schema.TypeInt,
-				Optional:     true,
-				Default:      32,
-				ValidateFunc: validate.IntBetweenAndDivisibleBy(32, 8000, 32),
-			},
-
+			// Optional
 			"license_type": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -114,28 +98,30 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				}, false),
 			},
 
-			"subnet_id": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: azure.ValidateResourceID,
+			// COmputed
+			"fully_qualified_domain_name": {
+				Type:     schema.TypeString,
+				Computed: true,
 			},
-
-			"tags": tagsSchema(),
 		},
 	}
 }
 
-func resourceArmSqlManagedInstanceCreateUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
 	name := d.Get("name").(string)
-	resGroup := d.Get("resource_group_name").(string)
+	resourceGroup := d.Get("resource_group_name").(string)
 	location := azure.NormalizeLocation(d.Get("location").(string))
 	adminUsername := d.Get("administrator_login").(string)
+	adminPassword := d.Get("administrator_login_password").(string)
 	licenseType := d.Get("license_type").(string)
+	skuName := d.Get("sku_name").(string)
+	storageSizeInGb := d.Get("storage_size_in_gb").(int)
 	subnetId := d.Get("subnet_id").(string)
 	t := d.Get("tags").(map[string]interface{})
+	vCores := d.Get("vcores").(int)
 
 	// TODO: lock on the subnet id
 	// TODO: requires import
@@ -144,10 +130,67 @@ func resourceArmSqlManagedInstanceCreateUpdate(d *schema.ResourceData, meta inte
 		Location: utils.String(location),
 		Tags:     tags.Expand(t),
 		ManagedInstanceProperties: &sql.ManagedInstanceProperties{
-			LicenseType:        sql.ManagedInstanceLicenseType(licenseType),
-			AdministratorLogin: utils.String(adminUsername),
-			SubnetID:           utils.String(subnetId),
+			LicenseType:                sql.ManagedInstanceLicenseType(licenseType),
+			AdministratorLogin:         utils.String(adminUsername),
+			AdministratorLoginPassword: utils.String(adminPassword),
+			SubnetID:                   utils.String(subnetId),
+			StorageSizeInGB:            utils.Int32(int32(storageSizeInGb)),
+			VCores:                     utils.Int32(int32(vCores)),
+
+			//Collation:
+			//TimezoneID:
 		},
+		Sku: &sql.Sku{
+			Name: utils.String(skuName),
+		},
+	}
+
+	future, err := client.CreateOrUpdate(ctx, resourceGroup, name, parameters)
+	if err != nil {
+		// TODO: should this be here?
+		if response.WasConflict(future.Response()) {
+			return fmt.Errorf("SQL Server names need to be globally unique and %q is already in use.", name)
+		}
+
+		return fmt.Errorf("Error creating SQL Managed Instance %q (Resource Group %q): %+v", name, resourceGroup, err)
+	}
+
+	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
+		return fmt.Errorf("Error waiting for creation of SQL Managed Instance %q (Resource Group %q): %+v", name, resourceGroup, err)
+	}
+
+	resp, err := client.Get(ctx, resourceGroup, name)
+	if err != nil {
+		return err
+	}
+
+	d.SetId(*resp.ID)
+
+	return resourceArmSqlManagedInstanceServerRead(d, meta)
+}
+
+func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ArmClient).Sql.ManagedInstancesClient
+	ctx := meta.(*ArmClient).StopContext
+
+	id, err := sqlSvc.ParseManagedInstanceResourceID(d.Id())
+	if err != nil {
+		return err
+	}
+
+	resourceGroup := id.ResourceGroup
+	name := id.Name
+
+	// TODO: lock on the subnet id
+
+	parameters := sql.ManagedInstanceUpdate{
+		ManagedInstanceProperties: &sql.ManagedInstanceProperties{},
+	}
+
+	// TODO: is this required?
+	if d.HasChange("administrator_login") {
+		adminUsername := d.Get("administrator_login").(string)
+		parameters.ManagedInstanceProperties.AdministratorLogin = utils.String(adminUsername)
 	}
 
 	if d.HasChange("administrator_login_password") {
@@ -155,26 +198,45 @@ func resourceArmSqlManagedInstanceCreateUpdate(d *schema.ResourceData, meta inte
 		parameters.ManagedInstanceProperties.AdministratorLoginPassword = utils.String(adminPassword)
 	}
 
-	future, err := client.CreateOrUpdate(ctx, resGroup, name, parameters)
+	if d.HasChange("license_type") {
+		licenseType := d.Get("license_type").(string)
+		parameters.ManagedInstanceProperties.LicenseType = sql.ManagedInstanceLicenseType(licenseType)
+	}
+
+	if d.HasChange("sku_name") {
+		parameters.Sku = &sql.Sku{
+			Name: utils.String(d.Get("sku").(string)),
+		}
+	}
+
+	if d.HasChange("") {
+		storageSizeInGb := d.Get("storage_size_in_gb").(int)
+		parameters.ManagedInstanceProperties.StorageSizeInGB = utils.Int32(int32(storageSizeInGb))
+	}
+
+	if d.HasChange("subnet_id") {
+		subnetId := d.Get("subnet_id").(string)
+		parameters.ManagedInstanceProperties.SubnetID = utils.String(subnetId)
+	}
+
+	if d.HasChange("tags") {
+		t := d.Get("tags").(map[string]interface{})
+		parameters.Tags = tags.Expand(t)
+	}
+
+	if d.HasChange("vcores") {
+		vCores := d.Get("vcores").(int)
+		parameters.ManagedInstanceProperties.VCores = utils.Int32(int32(vCores))
+	}
+
+	future, err := client.Update(ctx, resourceGroup, name, parameters)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error updating SQL Managed Instance %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-
-		if response.WasConflict(future.Response()) {
-			return fmt.Errorf("SQL Server names need to be globally unique and %q is already in use.", name)
-		}
-
-		return err
+		return fmt.Errorf("Error waiting for update of SQL Managed Instance %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
-
-	resp, err := client.Get(ctx, resGroup, name)
-	if err != nil {
-		return err
-	}
-
-	d.SetId(*resp.ID)
 
 	return resourceArmSqlManagedInstanceServerRead(d, meta)
 }
@@ -208,10 +270,27 @@ func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interf
 		d.Set("location", azure.NormalizeLocation(*location))
 	}
 
+	if sku := resp.Sku; sku != nil {
+		d.Set("sku_name", sku.Name)
+	}
+
 	if props := resp.ManagedInstanceProperties; props != nil {
-		d.Set("license_type", string(props.LicenseType))
 		d.Set("administrator_login", props.AdministratorLogin)
 		d.Set("fully_qualified_domain_name", props.FullyQualifiedDomainName)
+		d.Set("license_type", string(props.LicenseType))
+		d.Set("subnet_id", props.SubnetID)
+
+		storageSizeInGb := 0
+		if props.StorageSizeInGB != nil {
+			storageSizeInGb = int(*props.StorageSizeInGB)
+		}
+		d.Set("storage_size_in_gb", storageSizeInGb)
+
+		vCores := 0
+		if props.VCores != nil {
+			vCores = int(*props.VCores)
+		}
+		d.Set("vcores", vCores)
 	}
 
 	return tags.FlattenAndSet(d, resp.Tags)
