@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2015-05-01-preview/sql"
-	"github.com/hashicorp/terraform/helper/schema"
-	"github.com/hashicorp/terraform/helper/validation"
+	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2017-03-01-preview/sql"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/response"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/suppress"
@@ -29,9 +29,9 @@ func resourceArmSqlMiServer() *schema.Resource {
 				ValidateFunc: azure.ValidateMsSqlServerName,
 			},
 
-			"location": locationSchema(),
+			"location": azure.SchemaLocation(),
 
-			"resource_group_name": resourceGroupNameSchema(),
+			"resource_group_name": azure.SchemaResourceGroupName(),
 
 			"sku": {
 				Type:     schema.TypeList,
@@ -104,10 +104,10 @@ func resourceArmSqlMiServer() *schema.Resource {
 			"license_type": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Default:  "LicenseIncluded",
+				Default:  string(sql.LicenseIncluded),
 				ValidateFunc: validation.StringInSlice([]string{
-					"LicenseIncluded",
-					"BasePrice",
+					string(sql.BasePrice),
+					string(sql.LicenseIncluded),
 				}, true),
 			},
 
@@ -128,7 +128,7 @@ func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}
 
 	name := d.Get("name").(string)
 	resGroup := d.Get("resource_group_name").(string)
-	location := azureRMNormalizeLocation(d.Get("location").(string))
+	location := azure.NormalizeLocation(d.Get("location").(string))
 	adminUsername := d.Get("administrator_login").(string)
 	licenseType := d.Get("license_type").(string)
 	subnetId := d.Get("subnet_id").(string)
@@ -140,7 +140,7 @@ func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}
 		Location: utils.String(location),
 		Tags:     metadata,
 		ManagedInstanceProperties: &sql.ManagedInstanceProperties{
-			LicenseType:        utils.String(licenseType),
+			LicenseType:        sql.ManagedInstanceLicenseType(licenseType),
 			AdministratorLogin: utils.String(adminUsername),
 			SubnetID:           utils.String(subnetId),
 		},
@@ -201,11 +201,11 @@ func resourceArmSqlMiServerRead(d *schema.ResourceData, meta interface{}) error 
 	d.Set("name", name)
 	d.Set("resource_group_name", resGroup)
 	if location := resp.Location; location != nil {
-		d.Set("location", azureRMNormalizeLocation(*location))
+		d.Set("location", azure.NormalizeLocation(*location))
 	}
 
 	if miServerProperties := resp.ManagedInstanceProperties; miServerProperties != nil {
-		d.Set("license_type", miServerProperties.LicenseType)
+		d.Set("license_type", string(miServerProperties.LicenseType))
 		d.Set("administrator_login", miServerProperties.AdministratorLogin)
 		d.Set("fully_qualified_domain_name", miServerProperties.FullyQualifiedDomainName)
 	}
