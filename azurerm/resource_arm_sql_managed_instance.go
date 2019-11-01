@@ -10,7 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/response"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/validate"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 	sqlSvc "github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/sql"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tags"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/timeouts"
@@ -110,7 +112,7 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				}, false),
 			},
 
-			// COmputed
+			// Computed
 			"fully_qualified_domain_name": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -137,7 +139,19 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 	vCores := d.Get("vcores").(int)
 
 	// TODO: lock on the subnet id
-	// TODO: requires import
+
+	if features.ShouldResourcesBeImported() {
+		existing, err := client.Get(ctx, resourceGroup, name)
+		if err != nil {
+			if !utils.ResponseWasNotFound(existing.Response) {
+				return fmt.Errorf("Error checking for presence of existing SQL Managed Instance %q (Resource Group %q): %s", name, resourceGroup, err)
+			}
+		}
+
+		if existing.ID != nil && *existing.ID != "" {
+			return tf.ImportAsExistsError("azurerm_sql_managed_instance", *existing.ID)
+		}
+	}
 
 	parameters := sql.ManagedInstance{
 		Location: utils.String(location),
