@@ -9,17 +9,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/response"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/suppress"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/validate"
+	sqlSvc "github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/sql"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tags"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
-func resourceArmSqlMiServer() *schema.Resource {
+func resourceArmSqlManagedInstance() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceArmSqlMiServerCreateUpdate,
-		Read:   resourceArmSqlMiServerRead,
-		Update: resourceArmSqlMiServerCreateUpdate,
-		Delete: resourceArmSqlMiServerDelete,
+		// TODO: split Create and Update
+		Create: resourceArmSqlManagedInstanceCreateUpdate,
+		Read:   resourceArmSqlManagedInstanceServerRead,
+		Update: resourceArmSqlManagedInstanceCreateUpdate,
+		Delete: resourceArmSqlManagedInstanceDelete,
 
 		Schema: map[string]*schema.Schema{
 			"name": {
@@ -45,8 +47,7 @@ func resourceArmSqlMiServer() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{
 								"GP_Gen4",
 								"GP_Gen5",
-							}, true),
-							DiffSuppressFunc: suppress.CaseDifference,
+							}, false),
 						},
 
 						"capacity": {
@@ -71,12 +72,14 @@ func resourceArmSqlMiServer() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
+				// TODO: validation
 			},
 
 			"administrator_login_password": {
 				Type:      schema.TypeString,
 				Required:  true,
 				Sensitive: true,
+				// TODO: validation
 			},
 
 			"vcores": {
@@ -108,7 +111,7 @@ func resourceArmSqlMiServer() *schema.Resource {
 				ValidateFunc: validation.StringInSlice([]string{
 					string(sql.BasePrice),
 					string(sql.LicenseIncluded),
-				}, true),
+				}, false),
 			},
 
 			"subnet_id": {
@@ -122,7 +125,7 @@ func resourceArmSqlMiServer() *schema.Resource {
 	}
 }
 
-func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceArmSqlManagedInstanceCreateUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
@@ -132,13 +135,14 @@ func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}
 	adminUsername := d.Get("administrator_login").(string)
 	licenseType := d.Get("license_type").(string)
 	subnetId := d.Get("subnet_id").(string)
+	t := d.Get("tags").(map[string]interface{})
 
-	tags := d.Get("tags").(map[string]interface{})
-	metadata := expandTags(tags)
+	// TODO: lock on the subnet id
+	// TODO: requires import
 
 	parameters := sql.ManagedInstance{
 		Location: utils.String(location),
-		Tags:     metadata,
+		Tags:     tags.Expand(t),
 		ManagedInstanceProperties: &sql.ManagedInstanceProperties{
 			LicenseType:        sql.ManagedInstanceLicenseType(licenseType),
 			AdministratorLogin: utils.String(adminUsername),
@@ -172,65 +176,67 @@ func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}
 
 	d.SetId(*resp.ID)
 
-	return resourceArmSqlServerRead(d, meta)
+	return resourceArmSqlManagedInstanceServerRead(d, meta)
 }
 
-func resourceArmSqlMiServerRead(d *schema.ResourceData, meta interface{}) error {
+func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
-	id, err := parseAzureResourceID(d.Id())
+	id, err := sqlSvc.ParseManagedInstanceResourceID(d.Id())
 	if err != nil {
 		return err
 	}
 
-	resGroup := id.ResourceGroup
-	name := id.Path["managedInstances"]
+	resourceGroup := id.ResourceGroup
+	name := id.Name
 
-	resp, err := client.Get(ctx, resGroup, name)
+	resp, err := client.Get(ctx, resourceGroup, name)
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
-			log.Printf("[INFO] Error reading SQL Server %q - removing from state", d.Id())
+			log.Printf("[INFO] SQL Managed Instance %q was not found in Resource Group %q - assuming removed & removing from state", name, resourceGroup)
 			d.SetId("")
 			return nil
 		}
 
-		return fmt.Errorf("Error reading SQL Server %s: %v", name, err)
+		return fmt.Errorf("Error retrieving SQL Managed Instance %q (Resource Group %q): %v", name, resourceGroup, err)
 	}
 
 	d.Set("name", name)
-	d.Set("resource_group_name", resGroup)
+	d.Set("resource_group_name", resourceGroup)
 	if location := resp.Location; location != nil {
 		d.Set("location", azure.NormalizeLocation(*location))
 	}
 
-	if miServerProperties := resp.ManagedInstanceProperties; miServerProperties != nil {
-		d.Set("license_type", string(miServerProperties.LicenseType))
-		d.Set("administrator_login", miServerProperties.AdministratorLogin)
-		d.Set("fully_qualified_domain_name", miServerProperties.FullyQualifiedDomainName)
+	if props := resp.ManagedInstanceProperties; props != nil {
+		d.Set("license_type", string(props.LicenseType))
+		d.Set("administrator_login", props.AdministratorLogin)
+		d.Set("fully_qualified_domain_name", props.FullyQualifiedDomainName)
 	}
 
-	flattenAndSetTags(d, resp.Tags)
-
-	return nil
+	return tags.FlattenAndSet(d, resp.Tags)
 }
 
-func resourceArmSqlMiServerDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceArmSqlManagedInstanceDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
-	id, err := parseAzureResourceID(d.Id())
+	id, err := sqlSvc.ParseManagedInstanceResourceID(d.Id())
 	if err != nil {
 		return err
 	}
 
-	resGroup := id.ResourceGroup
-	name := id.Path["managedInstances"]
+	resourceGroup := id.ResourceGroup
+	name := id.Name
 
-	future, err := client.Delete(ctx, resGroup, name)
+	future, err := client.Delete(ctx, resourceGroup, name)
 	if err != nil {
-		return fmt.Errorf("Error deleting SQL Server %s: %+v", name, err)
+		return fmt.Errorf("Error deleting SQL Managed Instance %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
-	return future.WaitForCompletionRef(ctx, client.Client)
+	if err := future.WaitForCompletionRef(ctx, client.Client); err != nil {
+		return fmt.Errorf("Error waiting for deletion of SQL Managed Instance %q (Resource Group %q): %+v", name, resourceGroup, err)
+	}
+
+	return nil
 }

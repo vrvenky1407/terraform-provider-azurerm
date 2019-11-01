@@ -10,20 +10,22 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
-func TestAccAzureRMSqlMiServer_basic(t *testing.T) {
+// TODO: test for Requires Import
+
+func TestAccAzureRMSQLManagedInstance_basic(t *testing.T) {
 	resourceName := "azurerm_sql_managed_instance.test"
 	ri := tf.AccRandTimeInt()
-	config := testAccAzureRMSqlMiServer_basic(ri, testLocation())
+	config := testAccAzureRMSQLManagedInstance_basic(ri, testLocation())
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testCheckAzureRMSqlMiServerDestroy,
+		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMSqlMiServerExists(resourceName),
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
 					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
 				),
 			},
@@ -37,21 +39,21 @@ func TestAccAzureRMSqlMiServer_basic(t *testing.T) {
 	})
 }
 
-func TestAccAzureRMSqlMiServer_disappears(t *testing.T) {
+func TestAccAzureRMSQLManagedInstance_disappears(t *testing.T) {
 	resourceName := "azurerm_sql_managed_instance.test"
 	ri := tf.AccRandTimeInt()
-	config := testAccAzureRMSqlMiServer_basic(ri, testLocation())
+	config := testAccAzureRMSQLManagedInstance_basic(ri, testLocation())
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testCheckAzureRMSqlMiServerDestroy,
+		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMSqlMiServerExists(resourceName),
-					testCheckAzureRMSqlMiServerDisappears(resourceName),
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+					testCheckAzureRMSQLManagedInstanceDisappears(resourceName),
 				),
 				ExpectNonEmptyPlan: true,
 			},
@@ -59,7 +61,7 @@ func TestAccAzureRMSqlMiServer_disappears(t *testing.T) {
 	})
 }
 
-func testCheckAzureRMSqlMiServerExists(resourceName string) resource.TestCheckFunc {
+func testCheckAzureRMSQLManagedInstanceExists(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		// Ensure we have enough information in state to look up in API
 		rs, ok := s.RootModule().Resources[resourceName]
@@ -87,7 +89,7 @@ func testCheckAzureRMSqlMiServerExists(resourceName string) resource.TestCheckFu
 	}
 }
 
-func testCheckAzureRMSqlMiServerDestroy(s *terraform.State) error {
+func testCheckAzureRMSQLManagedInstanceDestroy(s *terraform.State) error {
 	conn := testAccProvider.Meta().(*ArmClient).Sql.ManagedInstancesClient
 	ctx := testAccProvider.Meta().(*ArmClient).StopContext
 
@@ -116,7 +118,7 @@ func testCheckAzureRMSqlMiServerDestroy(s *terraform.State) error {
 	return nil
 }
 
-func testCheckAzureRMSqlMiServerDisappears(resourceName string) resource.TestCheckFunc {
+func testCheckAzureRMSQLManagedInstanceDisappears(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		// Ensure we have enough information in state to look up in API
 		rs, ok := s.RootModule().Resources[resourceName]
@@ -132,14 +134,18 @@ func testCheckAzureRMSqlMiServerDisappears(resourceName string) resource.TestChe
 
 		future, err := client.Delete(ctx, resourceGroup, serverName)
 		if err != nil {
-			return err
+			return fmt.Errorf("Error deleting: %+v", err)
 		}
 
-		return future.WaitForCompletionRef(ctx, client.Client)
+		if err := future.WaitForCompletionRef(ctx, client.Client); err != nil {
+			return fmt.Errorf("Error waiting for deletion: %+v", err)
+		}
+
+		return nil
 	}
 }
 
-func testAccAzureRMSqlMiServer_basic(rInt int, location string) string {
+func testAccAzureRMSQLManagedInstance_basic(rInt int, location string) string {
 	return fmt.Sprintf(`
 resource "azurerm_resource_group" "test" {
   name     = "acctestRG-%d"

@@ -468,7 +468,7 @@ func Provider() terraform.ResourceProvider {
 
 	// 2.0 resources
 	if features.SupportsTwoPointZeroResources() {
-		resources["azurerm_sql_managed_instance"] = resourceArmSqlMiServer()
+		resources["azurerm_sql_managed_instance"] = resourceArmSqlManagedInstance()
 		resources["azurerm_linux_virtual_machine_scale_set"] = resourceArmLinuxVirtualMachineScaleSet()
 		resources["azurerm_windows_virtual_machine_scale_set"] = resourceArmWindowsVirtualMachineScaleSet()
 	}
