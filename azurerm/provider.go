@@ -464,13 +464,11 @@ func Provider() terraform.ResourceProvider {
 		"azurerm_virtual_network":                                                        resourceArmVirtualNetwork(),
 		"azurerm_virtual_wan":                                                            resourceArmVirtualWan(),
 		"azurerm_web_application_firewall_policy":                                        resourceArmWebApplicationFirewallPolicy(),
-
-		// TODO: make 2.0 only
-		"azurerm_sql_managed_instance": resourceArmSqlMiServer(),
 	}
 
 	// 2.0 resources
 	if features.SupportsTwoPointZeroResources() {
+		resources["azurerm_sql_managed_instance"] = resourceArmSqlMiServer()
 		resources["azurerm_linux_virtual_machine_scale_set"] = resourceArmLinuxVirtualMachineScaleSet()
 		resources["azurerm_windows_virtual_machine_scale_set"] = resourceArmWindowsVirtualMachineScaleSet()
 	}
