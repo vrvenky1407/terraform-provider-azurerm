@@ -123,7 +123,7 @@ func resourceArmSqlMiServer() *schema.Resource {
 }
 
 func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).sqlMiServersClient
+	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
 	name := d.Get("name").(string)
@@ -176,7 +176,7 @@ func resourceArmSqlMiServerCreateUpdate(d *schema.ResourceData, meta interface{}
 }
 
 func resourceArmSqlMiServerRead(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).sqlMiServersClient
+	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
 	id, err := parseAzureResourceID(d.Id())
@@ -216,7 +216,7 @@ func resourceArmSqlMiServerRead(d *schema.ResourceData, meta interface{}) error 
 }
 
 func resourceArmSqlMiServerDelete(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).sqlMiServersClient
+	client := meta.(*ArmClient).Sql.ManagedInstancesClient
 	ctx := meta.(*ArmClient).StopContext
 
 	id, err := parseAzureResourceID(d.Id())
