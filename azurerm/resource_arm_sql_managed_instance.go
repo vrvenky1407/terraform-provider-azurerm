@@ -70,6 +70,7 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				ValidateFunc: validation.StringInSlice([]string{
 					"GP_Gen4",
 					"GP_Gen5",
+					// TODO: can this also be `BC_Gen4` and `BC_Gen5`?
 				}, false),
 			},
 
@@ -91,6 +92,7 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				Type:     schema.TypeInt,
 				Required: true,
 				ValidateFunc: validate.IntInSlice([]int{
+					// TODO: what about vCore 4?
 					8,
 					16,
 					24,
@@ -102,6 +104,11 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 			},
 
 			// Optional
+			"collation": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+
 			"license_type": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -110,6 +117,13 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 					string(sql.BasePrice),
 					string(sql.LicenseIncluded),
 				}, false),
+			},
+
+			"time_zone": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validate.VirtualMachineTimeZone(),
+				// TODO: confirm this is correct
 			},
 
 			// Computed
@@ -138,7 +152,7 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 	t := d.Get("tags").(map[string]interface{})
 	vCores := d.Get("vcores").(int)
 
-	// TODO: lock on the subnet id
+	// TODO: lock on the subnet id?
 
 	if features.ShouldResourcesBeImported() {
 		existing, err := client.Get(ctx, resourceGroup, name)
@@ -163,13 +177,18 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 			SubnetID:                   utils.String(subnetId),
 			StorageSizeInGB:            utils.Int32(int32(storageSizeInGb)),
 			VCores:                     utils.Int32(int32(vCores)),
-
-			//Collation:
-			//TimezoneID:
 		},
 		Sku: &sql.Sku{
 			Name: utils.String(skuName),
 		},
+	}
+
+	if v, ok := d.GetOk("collation"); ok {
+		parameters.ManagedInstanceProperties.Collation = utils.String(v.(string))
+	}
+
+	if v, ok := d.GetOk("time_zone"); ok {
+		parameters.ManagedInstanceProperties.TimezoneID = utils.String(v.(string))
 	}
 
 	future, err := client.CreateOrUpdate(ctx, resourceGroup, name, parameters)
@@ -209,8 +228,6 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 	resourceGroup := id.ResourceGroup
 	name := id.Name
 
-	// TODO: lock on the subnet id
-
 	parameters := sql.ManagedInstanceUpdate{
 		ManagedInstanceProperties: &sql.ManagedInstanceProperties{},
 	}
@@ -226,6 +243,11 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 		parameters.ManagedInstanceProperties.AdministratorLoginPassword = utils.String(adminPassword)
 	}
 
+	if d.HasChange("collation") {
+		collation := d.Get("collation").(string)
+		parameters.ManagedInstanceProperties.Collation = utils.String(collation)
+	}
+
 	if d.HasChange("license_type") {
 		licenseType := d.Get("license_type").(string)
 		parameters.ManagedInstanceProperties.LicenseType = sql.ManagedInstanceLicenseType(licenseType)
@@ -237,7 +259,7 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 		}
 	}
 
-	if d.HasChange("") {
+	if d.HasChange("storage_size_in_gb") {
 		storageSizeInGb := d.Get("storage_size_in_gb").(int)
 		parameters.ManagedInstanceProperties.StorageSizeInGB = utils.Int32(int32(storageSizeInGb))
 	}
@@ -251,6 +273,11 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 	if d.HasChange("tags") {
 		t := d.Get("tags").(map[string]interface{})
 		parameters.Tags = tags.Expand(t)
+	}
+
+	if d.HasChange("time_zone") {
+		timeZoneId := d.Get("time_zone").(string)
+		parameters.ManagedInstanceProperties.TimezoneID = utils.String(timeZoneId)
 	}
 
 	if d.HasChange("vcores") {
@@ -306,9 +333,11 @@ func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interf
 
 	if props := resp.ManagedInstanceProperties; props != nil {
 		d.Set("administrator_login", props.AdministratorLogin)
+		d.Set("collation", props.Collation)
 		d.Set("fully_qualified_domain_name", props.FullyQualifiedDomainName)
 		d.Set("license_type", string(props.LicenseType))
 		d.Set("subnet_id", props.SubnetID)
+		d.Set("time_zone", props.TimezoneID)
 
 		storageSizeInGb := 0
 		if props.StorageSizeInGB != nil {
