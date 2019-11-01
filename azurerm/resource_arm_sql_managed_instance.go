@@ -3,6 +3,7 @@ package azurerm
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2017-03-01-preview/sql"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -12,6 +13,7 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/validate"
 	sqlSvc "github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/sql"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tags"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/timeouts"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
@@ -21,7 +23,17 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 		Read:   resourceArmSqlManagedInstanceServerRead,
 		Update: resourceArmSqlManagedInstanceUpdate,
 		Delete: resourceArmSqlManagedInstanceDelete,
-		// TOOD: timeouts
+
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
+
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(6 * time.Hour),
+			Read:   schema.DefaultTimeout(5 * time.Minute),
+			Update: schema.DefaultTimeout(6 * time.Hour),
+			Delete: schema.DefaultTimeout(6 * time.Hour),
+		},
 
 		Schema: map[string]*schema.Schema{
 			"name": {
@@ -109,7 +121,8 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 
 func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
-	ctx := meta.(*ArmClient).StopContext
+	ctx, cancel := timeouts.ForCreate(meta.(*ArmClient).StopContext, d)
+	defer cancel()
 
 	name := d.Get("name").(string)
 	resourceGroup := d.Get("resource_group_name").(string)
@@ -171,7 +184,8 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 
 func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
-	ctx := meta.(*ArmClient).StopContext
+	ctx, cancel := timeouts.ForUpdate(meta.(*ArmClient).StopContext, d)
+	defer cancel()
 
 	id, err := sqlSvc.ParseManagedInstanceResourceID(d.Id())
 	if err != nil {
@@ -215,6 +229,7 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 	}
 
 	if d.HasChange("subnet_id") {
+		// TODO: should we be locking on this?
 		subnetId := d.Get("subnet_id").(string)
 		parameters.ManagedInstanceProperties.SubnetID = utils.String(subnetId)
 	}
@@ -243,7 +258,8 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 
 func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
-	ctx := meta.(*ArmClient).StopContext
+	ctx, cancel := timeouts.ForRead(meta.(*ArmClient).StopContext, d)
+	defer cancel()
 
 	id, err := sqlSvc.ParseManagedInstanceResourceID(d.Id())
 	if err != nil {
@@ -298,7 +314,8 @@ func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interf
 
 func resourceArmSqlManagedInstanceDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Sql.ManagedInstancesClient
-	ctx := meta.(*ArmClient).StopContext
+	ctx, cancel := timeouts.ForDelete(meta.(*ArmClient).StopContext, d)
+	defer cancel()
 
 	id, err := sqlSvc.ParseManagedInstanceResourceID(d.Id())
 	if err != nil {
