@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
@@ -15,7 +16,7 @@ import (
 func TestAccAzureRMSQLManagedInstance_basic(t *testing.T) {
 	resourceName := "azurerm_sql_managed_instance.test"
 	ri := tf.AccRandTimeInt()
-	config := testAccAzureRMSQLManagedInstance_basic(ri, testLocation())
+	location := testLocation()
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -23,10 +24,9 @@ func TestAccAzureRMSQLManagedInstance_basic(t *testing.T) {
 		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: config,
+				Config: testAccAzureRMSQLManagedInstance_basic(ri, location),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMSQLManagedInstanceExists(resourceName),
-					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
 				),
 			},
 			{
@@ -34,6 +34,35 @@ func TestAccAzureRMSQLManagedInstance_basic(t *testing.T) {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+		},
+	})
+}
+
+func TestAccAzureRMSQLManagedInstance_requiresImport(t *testing.T) {
+	if !features.ShouldResourcesBeImported() {
+		t.Skip("Skipping since resources aren't required to be imported")
+		return
+	}
+
+	resourceName := "azurerm_sql_managed_instance.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAzureRMSQLManagedInstance_basic(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				Config:      testAccAzureRMSQLManagedInstance_basic(ri, location),
+				ExpectError: testRequiresImportError("azurerm_sql_managed_instance"),
 			},
 		},
 	})
@@ -56,6 +85,32 @@ func TestAccAzureRMSQLManagedInstance_disappears(t *testing.T) {
 					testCheckAzureRMSQLManagedInstanceDisappears(resourceName),
 				),
 				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func TestAccAzureRMSQLManagedInstance_complete(t *testing.T) {
+	resourceName := "azurerm_sql_managed_instance.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAzureRMSQLManagedInstance_complete(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
 			},
 		},
 	})
@@ -146,6 +201,23 @@ func testCheckAzureRMSQLManagedInstanceDisappears(resourceName string) resource.
 }
 
 func testAccAzureRMSQLManagedInstance_basic(rInt int, location string) string {
+	template := testAccAzureRMSQLManagedInstance_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+ 
+resource "azurerm_sql_managed_instance" "test" {
+  name                         = "acctestsqlserver%d"
+  resource_group_name          = azurerm_resource_group.test.name
+  location                     = azurerm_resource_group.test.location
+  subnet_id					   = azurerm_subnet.test.id
+  administrator_login          = "mradministrator"
+  administrator_login_password = "thisIsDog11"
+  license_type				   = "BasePrice3
+}
+`, template, rInt)
+}
+
+func testAccAzureRMSQLManagedInstance_complete(rInt int, location string) string {
 	template := testAccAzureRMSQLManagedInstance_template(rInt, location)
 	return fmt.Sprintf(`
 %s
