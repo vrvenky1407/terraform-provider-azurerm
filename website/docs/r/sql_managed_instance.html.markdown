@@ -70,6 +70,8 @@ The following arguments are supported:
 
 * `collation` - (Optional) The collation which should be used for the SQL Managed Instance.
 
+* `proxy_override` - (Optional) The
+
 * `public_data_endpoint_enabled` - (Optional) Is the Public Data Endpoint enabled? Defaults to `false`.
 
 * `tags` - (Optional) A mapping of tags to assign to the resource.

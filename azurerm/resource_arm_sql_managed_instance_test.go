@@ -117,6 +117,59 @@ func TestAccAzureRMSQLManagedInstance_complete(t *testing.T) {
 	})
 }
 
+func TestAccAzureRMSQLManagedInstance_proxyOverride(t *testing.T) {
+	resourceName := "azurerm_sql_managed_instance.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				// Redirect
+				Config: testAccAzureRMSQLManagedInstance_proxyOverrideRedirect(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+			{
+				// Proxy
+				Config: testAccAzureRMSQLManagedInstance_basic(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+			{
+				// Redirect
+				Config: testAccAzureRMSQLManagedInstance_proxyOverrideRedirect(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+		},
+	})
+}
+
 func TestAccAzureRMSQLManagedInstance_publicDataEndpointEnabled(t *testing.T) {
 	resourceName := "azurerm_sql_managed_instance.test"
 	ri := tf.AccRandTimeInt()
@@ -295,6 +348,27 @@ resource "azurerm_sql_managed_instance" "test" {
 	environment = "staging"
 	database    = "test"
   }
+}
+`, template, rInt)
+}
+
+func testAccAzureRMSQLManagedInstance_proxyOverrideRedirect(rInt int, location string) string {
+	template := testAccAzureRMSQLManagedInstance_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+ 
+resource "azurerm_sql_managed_instance" "test" {
+  name                         = "acctestsqlserver%d"
+  resource_group_name          = azurerm_resource_group.test.name
+  location                     = azurerm_resource_group.test.location
+  subnet_id					   = azurerm_subnet.test.id
+  administrator_login          = "mradministrator"
+  administrator_login_password = "P@s$w0rd1234!1234!"
+  license_type				   = "BasePrice"
+  storage_size_in_gb           = 32
+  sku_name                     = "GP_Gen5"
+  vcores                       = 4
+  proxy_override               = "Redirect"
 }
 `, template, rInt)
 }
