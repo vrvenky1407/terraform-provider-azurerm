@@ -70,7 +70,7 @@ The following arguments are supported:
 
 * `collation` - (Optional) The collation which should be used for the SQL Managed Instance.
 
-* `proxy_override` - (Optional) The
+* `proxy_override` - (Optional) The connection type used for connectivity to the SQL Managed Instance. Possible values are `Proxy` and `Redirect`. Defaults to `Proxy`.
 
 * `public_data_endpoint_enabled` - (Optional) Is the Public Data Endpoint enabled? Defaults to `false`.
 
