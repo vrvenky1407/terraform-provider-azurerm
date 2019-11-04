@@ -237,7 +237,7 @@ func testCheckAzureRMSQLManagedInstanceExists(resourceName string) resource.Test
 			return fmt.Errorf("Bad: no resource group found in state for SQL Managed Instance: %s", sqlServerName)
 		}
 
-		conn := testAccProvider.Meta().(*ArmClient).Sql.ManagedInstancesClient
+		conn := testAccProvider.Meta().(*ArmClient).Mssql.ManagedInstancesClient
 		ctx := testAccProvider.Meta().(*ArmClient).StopContext
 		resp, err := conn.Get(ctx, resourceGroup, sqlServerName)
 		if err != nil {
@@ -252,7 +252,7 @@ func testCheckAzureRMSQLManagedInstanceExists(resourceName string) resource.Test
 }
 
 func testCheckAzureRMSQLManagedInstanceDestroy(s *terraform.State) error {
-	conn := testAccProvider.Meta().(*ArmClient).Sql.ManagedInstancesClient
+	conn := testAccProvider.Meta().(*ArmClient).Mssql.ManagedInstancesClient
 	ctx := testAccProvider.Meta().(*ArmClient).StopContext
 
 	for _, rs := range s.RootModule().Resources {
@@ -291,7 +291,7 @@ func testCheckAzureRMSQLManagedInstanceDisappears(resourceName string) resource.
 		resourceGroup := rs.Primary.Attributes["resource_group_name"]
 		serverName := rs.Primary.Attributes["name"]
 
-		client := testAccProvider.Meta().(*ArmClient).Sql.ManagedInstancesClient
+		client := testAccProvider.Meta().(*ArmClient).Mssql.ManagedInstancesClient
 		ctx := testAccProvider.Meta().(*ArmClient).StopContext
 
 		future, err := client.Delete(ctx, resourceGroup, serverName)

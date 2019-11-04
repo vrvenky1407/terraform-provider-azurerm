@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2017-03-01-preview/sql"
+	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2018-06-01-preview/sql"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
@@ -19,7 +19,6 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
-// TODO: update the api version
 func resourceArmSqlManagedInstance() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmSqlManagedInstanceCreate,
@@ -154,7 +153,7 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 }
 
 func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).Sql.ManagedInstancesClient
+	client := meta.(*ArmClient).Mssql.ManagedInstancesClient
 	ctx, cancel := timeouts.ForCreate(meta.(*ArmClient).StopContext, d)
 	defer cancel()
 
@@ -206,6 +205,8 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 		},
 	}
 
+	// TODO: support for MSI/UAI
+
 	if v, ok := d.GetOk("collation"); ok {
 		parameters.ManagedInstanceProperties.Collation = utils.String(v.(string))
 	}
@@ -239,7 +240,7 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 }
 
 func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).Sql.ManagedInstancesClient
+	client := meta.(*ArmClient).Mssql.ManagedInstancesClient
 	ctx, cancel := timeouts.ForUpdate(meta.(*ArmClient).StopContext, d)
 	defer cancel()
 
@@ -331,7 +332,7 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 }
 
 func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).Sql.ManagedInstancesClient
+	client := meta.(*ArmClient).Mssql.ManagedInstancesClient
 	ctx, cancel := timeouts.ForRead(meta.(*ArmClient).StopContext, d)
 	defer cancel()
 
@@ -391,7 +392,7 @@ func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interf
 }
 
 func resourceArmSqlManagedInstanceDelete(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).Sql.ManagedInstancesClient
+	client := meta.(*ArmClient).Mssql.ManagedInstancesClient
 	ctx, cancel := timeouts.ForDelete(meta.(*ArmClient).StopContext, d)
 	defer cancel()
 
