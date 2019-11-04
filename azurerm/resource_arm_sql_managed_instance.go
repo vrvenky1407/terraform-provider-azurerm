@@ -52,17 +52,17 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 			"resource_group_name": azure.SchemaResourceGroupName(),
 
 			"administrator_login": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true, // TODO: is it?
-				// TODO: validation
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true, // TODO: is it?
+				ValidateFunc: validate.NoEmptyStrings,
 			},
 
 			"administrator_login_password": {
-				Type:      schema.TypeString,
-				Required:  true,
-				Sensitive: true,
-				// TODO: validation
+				Type:         schema.TypeString,
+				Required:     true,
+				Sensitive:    true,
+				ValidateFunc: validate.StringAtLeast(16),
 			},
 
 			"sku_name": {
@@ -122,6 +122,11 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				}, false),
 			},
 
+			"public_data_endpoint_enabled": {
+				Type:     schema.TypeBool,
+				Optional: true,
+			},
+
 			"time_zone": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -149,6 +154,7 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 	adminUsername := d.Get("administrator_login").(string)
 	adminPassword := d.Get("administrator_login_password").(string)
 	licenseType := d.Get("license_type").(string)
+	publicDataEndpointEnabled := d.Get("public_data_endpoint_enabled").(bool)
 	skuName := d.Get("sku_name").(string)
 	storageSizeInGb := d.Get("storage_size_in_gb").(int)
 	subnetId := d.Get("subnet_id").(string)
@@ -180,6 +186,8 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 			SubnetID:                   utils.String(subnetId),
 			StorageSizeInGB:            utils.Int32(int32(storageSizeInGb)),
 			VCores:                     utils.Int32(int32(vCores)),
+
+			PublicDataEndpointEnabled: utils.Bool(publicDataEndpointEnabled),
 
 			// PublicDataEndpointEnabled:
 			// ProxyOverride: <- Proxy is default
@@ -257,6 +265,11 @@ func resourceArmSqlManagedInstanceUpdate(d *schema.ResourceData, meta interface{
 	if d.HasChange("license_type") {
 		licenseType := d.Get("license_type").(string)
 		parameters.ManagedInstanceProperties.LicenseType = sql.ManagedInstanceLicenseType(licenseType)
+	}
+
+	if d.HasChange("public_data_endpoint_enabled") {
+		publicDataEndpointEnabled := d.Get("public_data_endpoint_enabled").(bool)
+		parameters.ManagedInstanceProperties.PublicDataEndpointEnabled = utils.Bool(publicDataEndpointEnabled)
 	}
 
 	if d.HasChange("sku_name") {
@@ -342,6 +355,7 @@ func resourceArmSqlManagedInstanceServerRead(d *schema.ResourceData, meta interf
 		d.Set("collation", props.Collation)
 		d.Set("fully_qualified_domain_name", props.FullyQualifiedDomainName)
 		d.Set("license_type", string(props.LicenseType))
+		d.Set("public_data_endpoint_enabled", props.PublicDataEndpointEnabled)
 		d.Set("subnet_id", props.SubnetID)
 		d.Set("time_zone", props.TimezoneID)
 

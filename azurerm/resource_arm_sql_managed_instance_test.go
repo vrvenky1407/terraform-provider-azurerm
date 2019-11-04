@@ -11,7 +11,8 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
-// TODO: test for Requires Import
+// TODO: a test scaling vcores, storage and then together
+// TODO: a test updating the password, which presumably needs the public endpoint?
 
 func TestAccAzureRMSQLManagedInstance_basic(t *testing.T) {
 	resourceName := "azurerm_sql_managed_instance.test"
@@ -102,6 +103,59 @@ func TestAccAzureRMSQLManagedInstance_complete(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccAzureRMSQLManagedInstance_complete(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+		},
+	})
+}
+
+func TestAccAzureRMSQLManagedInstance_publicDataEndpointEnabled(t *testing.T) {
+	resourceName := "azurerm_sql_managed_instance.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMSQLManagedInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				// Enabled
+				Config: testAccAzureRMSQLManagedInstance_publicDataEndpointEnabled(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+			{
+				// Disabled
+				Config: testAccAzureRMSQLManagedInstance_basic(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMSQLManagedInstanceExists(resourceName),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"administrator_login_password"},
+			},
+			{
+				// Enabled
+				Config: testAccAzureRMSQLManagedInstance_publicDataEndpointEnabled(ri, location),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMSQLManagedInstanceExists(resourceName),
 				),
@@ -211,8 +265,11 @@ resource "azurerm_sql_managed_instance" "test" {
   location                     = azurerm_resource_group.test.location
   subnet_id					   = azurerm_subnet.test.id
   administrator_login          = "mradministrator"
-  administrator_login_password = "thisIsDog11"
-  license_type				   = "BasePrice3
+  administrator_login_password = "P@s$w0rd1234!1234!"
+  license_type				   = "BasePrice"
+  storage_size_in_gb           = 32
+  sku_name                     = "GP_Gen5"
+  vcores                       = 4
 }
 `, template, rInt)
 }
@@ -228,13 +285,37 @@ resource "azurerm_sql_managed_instance" "test" {
   location                     = azurerm_resource_group.test.location
   subnet_id					   = azurerm_subnet.test.id
   administrator_login          = "mradministrator"
-  administrator_login_password = "thisIsDog11"
+  administrator_login_password = "P@s$w0rd1234!1234!"
   license_type				   = "BasePrice"
+  storage_size_in_gb           = 32
+  sku_name                     = "GP_Gen5"
+  vcores                       = 4
 
-  tags {
+  tags = {
 	environment = "staging"
 	database    = "test"
   }
+}
+`, template, rInt)
+}
+
+func testAccAzureRMSQLManagedInstance_publicDataEndpointEnabled(rInt int, location string) string {
+	template := testAccAzureRMSQLManagedInstance_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+ 
+resource "azurerm_sql_managed_instance" "test" {
+  name                         = "acctestsqlserver%d"
+  resource_group_name          = azurerm_resource_group.test.name
+  location                     = azurerm_resource_group.test.location
+  subnet_id					   = azurerm_subnet.test.id
+  administrator_login          = "mradministrator"
+  administrator_login_password = "P@s$w0rd1234!1234!"
+  license_type				   = "BasePrice"
+  storage_size_in_gb           = 32
+  sku_name                     = "GP_Gen5"
+  vcores                       = 4
+  public_data_endpoint_enabled = true
 }
 `, template, rInt)
 }

@@ -70,6 +70,8 @@ The following arguments are supported:
 
 * `collation` - (Optional) The collation which should be used for the SQL Managed Instance.
 
+* `public_data_endpoint_enabled` - (Optional) Is the Public Data Endpoint enabled? Defaults to `false`.
+
 * `tags` - (Optional) A mapping of tags to assign to the resource.
 
 * `time_zone` - (Optional) The Time Zone which should be used for the SQL Managed Instance, [the possible values are defined here](https://jackstromberg.com/2017/01/list-of-time-zones-consumed-by-azure/).
