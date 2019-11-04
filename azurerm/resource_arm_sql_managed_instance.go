@@ -19,6 +19,7 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
+// TODO: update the api version
 func resourceArmSqlManagedInstance() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmSqlManagedInstanceCreate,
@@ -68,9 +69,11 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 				ValidateFunc: validation.StringInSlice([]string{
+					"BC_Gen4",
+					"BC_Gen5",
 					"GP_Gen4",
 					"GP_Gen5",
-					// TODO: can this also be `BC_Gen4` and `BC_Gen5`?
+					// TODO: do we also need "Edition" in the SKU block?
 				}, false),
 			},
 
@@ -92,7 +95,7 @@ func resourceArmSqlManagedInstance() *schema.Resource {
 				Type:     schema.TypeInt,
 				Required: true,
 				ValidateFunc: validate.IntInSlice([]int{
-					// TODO: what about vCore 4?
+					4,
 					8,
 					16,
 					24,
@@ -177,6 +180,9 @@ func resourceArmSqlManagedInstanceCreate(d *schema.ResourceData, meta interface{
 			SubnetID:                   utils.String(subnetId),
 			StorageSizeInGB:            utils.Int32(int32(storageSizeInGb)),
 			VCores:                     utils.Int32(int32(vCores)),
+
+			// PublicDataEndpointEnabled:
+			// ProxyOverride: <- Proxy is default
 		},
 		Sku: &sql.Sku{
 			Name: utils.String(skuName),

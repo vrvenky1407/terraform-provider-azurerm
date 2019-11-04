@@ -52,7 +52,7 @@ The following arguments are supported:
 
 * `license_type` - (Required) License of the Managed Instance. Possible values are `BasePrice` and `PriceIncluded`.
 
-* `sku_name` - (Required) The SKU which should be used for this Managed Instance. Possible values are `GP_Gen4` and `GP_Gen5`.
+* `sku_name` - (Required) The SKU which should be used for this Managed Instance. Possible values are `BC_Gen4` and `BC_Gen5` (for a `Business Critical` SKU) `GP_Gen4` and `GP_Gen5` (for a `General Purpose` SKU).
 
 * `storage_size_in_gb` - (Required) The amount of Storage which should be assigned to this SQL Managed Instance. This can be between 32GB and 8192GB in increments of 32GB.
 
@@ -60,7 +60,7 @@ The following arguments are supported:
 
 * `vcores` - (Required) The number of cores which should be assigned to this SQL Managed Instance. The number of cores available depends on the `sku_name` being used.
 
--> **NOTE:** When using a `sku_name` of `GP_Gen4` - `vcores` can be `8`, `16` or `24`. When using a `sku_name` of `GP_Gen5` - `vcores` can be `8`, `16`, `24`, `32`, `40`, `64` or `80`.
+-> **NOTE:** When using a `Gen4` SKU - `vcores` can be `4`, `8`, `16` or `24`. When using a `Gen5` SKU - `vcores` can be `4`, `8`, `16`, `24`, `32`, `40`, `64` or `80`.
 
 * `administrator_login` - (Required) The username which should be used as the Administrator for the SQL Managed Instance. Changing this forces a new resource to be created.
 
