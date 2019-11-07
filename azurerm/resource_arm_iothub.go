@@ -473,7 +473,6 @@ func resourceArmIotHubCreateUpdate(d *schema.ResourceData, meta interface{}) err
 
 	fallbackRoute := expandIoTHubFallbackRoute(d)
 	routes := expandIoTHubRoutes(d)
-
 	routingProperties := devices.RoutingProperties{
 		Routes:        routes,
 		FallbackRoute: fallbackRoute,

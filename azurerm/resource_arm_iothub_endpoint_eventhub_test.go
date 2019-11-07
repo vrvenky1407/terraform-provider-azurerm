@@ -41,7 +41,6 @@ func TestAccAzureRMIotHubEndpointEventHub_requiresImport(t *testing.T) {
 		t.Skip("Skipping since resources aren't required to be imported")
 		return
 	}
-
 	resourceName := "azurerm_iothub_endpoint_eventhub.test"
 	rInt := tf.AccRandTimeInt()
 	location := testLocation()
@@ -194,7 +193,6 @@ func testAccAzureRMIotHubEndpointEventHubDestroy(s *terraform.State) error {
 		if rs.Type != "azurerm_iothub_endpoint_eventhub" {
 			continue
 		}
-
 		endpointName := rs.Primary.Attributes["name"]
 		iothubName := rs.Primary.Attributes["iothub_name"]
 		resourceGroup := rs.Primary.Attributes["resource_group_name"]
@@ -217,8 +215,10 @@ func testAccAzureRMIotHubEndpointEventHubDestroy(s *terraform.State) error {
 		}
 
 		for _, endpoint := range *endpoints {
-			if strings.EqualFold(*endpoint.Name, endpointName) {
-				return fmt.Errorf("Bad: EventHub endpoint %s still exists on IoTHb %s", endpointName, iothubName)
+			if existingEndpointName := endpoint.Name; existingEndpointName != nil {
+				if strings.EqualFold(*existingEndpointName, endpointName) {
+					return fmt.Errorf("Bad: EventHub endpoint %s still exists on IoTHb %s", endpointName, iothubName)
+				}
 			}
 		}
 	}
