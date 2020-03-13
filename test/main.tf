@@ -3,7 +3,7 @@ resource "azurerm_resource_group" "tfcloud-test" {
   location = var.location
 
   tags ={
-    environment = "codelab"
+    environment = "TerraformCloud-codelab"
   }
 }
 
